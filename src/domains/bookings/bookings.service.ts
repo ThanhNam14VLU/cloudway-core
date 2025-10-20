@@ -3,11 +3,14 @@ import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { CreateBookingWithPassengersDto } from './dto/create-booking-with-passengers.dto';
 import { SupabaseService } from '../../services/supabase/supabase.service';
+import { AirlineStatisticService } from '../airline-statistic/airline-statistic.service';
 
 @Injectable()
 export class BookingsService {
-  constructor(private readonly supabaseService: SupabaseService) {
-  }
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly airlineStatisticService: AirlineStatisticService,
+  ) {}
 
   /**
    * Generate mã PNR ngẫu nhiên (6 ký tự chữ và số)
@@ -281,7 +284,13 @@ export class BookingsService {
       throw new BadRequestException(`Lỗi tạo payment: ${paymentError.message}`);
     }
 
-    // 5. Return booking info đầy đủ
+    // 5. Giảm available seats ngay khi booking thành công (chưa có payment gateway)
+    await this.reduceAvailableSeats(bookingId);
+
+    // 6. Cập nhật thống kê airline
+    await this.updateAirlineStatistics(createdSegments, totalAmount);
+
+    // 7. Return booking info đầy đủ
     return {
       message: '✅ Tạo booking thành công',
       booking: {
@@ -331,6 +340,120 @@ export class BookingsService {
     const totalPrice = basePrice * totalPassengers;
 
     return totalPrice;
+  }
+
+  /**
+   * Giảm số ghế available trong inventories khi booking được tạo thành công
+   */
+  private async reduceAvailableSeats(bookingId: string) {
+    // Lấy tất cả booking segments của booking này
+    const { data: segments, error: segmentsError } = await this.supabaseService.client
+      .from('booking_segments')
+      .select(`
+        flight_instance_id,
+        fare_bucket_id,
+        passengers (id)
+      `)
+      .eq('booking_id', bookingId);
+
+    if (segmentsError) {
+      throw new BadRequestException(`Lỗi lấy segments: ${segmentsError.message}`);
+    }
+
+    // Với mỗi segment, giảm available_seats
+    for (const segment of segments || []) {
+      const passengerCount = segment.passengers?.length || 0;
+      
+      if (passengerCount > 0) {
+        // Tìm inventory record tương ứng
+        const { data: inventory, error: invError } = await this.supabaseService.client
+          .from('inventories')
+          .select('id, available_seats')
+          .eq('flight_instance_id', segment.flight_instance_id)
+          .eq('fare_bucket_id', segment.fare_bucket_id)
+          .single();
+
+        if (invError) {
+          console.warn(`Không tìm thấy inventory cho segment ${segment.flight_instance_id}, ${segment.fare_bucket_id}`);
+          continue;
+        }
+
+        // Giảm available_seats
+        const newAvailableSeats = Math.max(0, inventory.available_seats - passengerCount);
+        
+        const { error: updateError } = await this.supabaseService.client
+          .from('inventories')
+          .update({ 
+            available_seats: newAvailableSeats,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', inventory.id);
+
+        if (updateError) {
+          throw new BadRequestException(`Lỗi cập nhật inventory: ${updateError.message}`);
+        }
+      }
+    }
+  }
+
+  /**
+   * Cập nhật thống kê airline sau khi booking thành công
+   */
+  private async updateAirlineStatistics(segments: any[], totalAmount: number) {
+    // Group segments by airline để cập nhật thống kê
+    const airlineStats = new Map<string, { passengerCount: number; revenue: number }>();
+
+    for (const segment of segments) {
+      // Lấy airline_id từ flight_instance
+      const { data: flightInstance, error: flightError } = await this.supabaseService.client
+        .from('flight_instances')
+        .select(`
+          flight_number:flight_number_id (
+            airline_id
+          )
+        `)
+        .eq('id', segment.flight_instance_id)
+        .single();
+
+      if (flightError) {
+        console.warn(`Không tìm thấy flight instance ${segment.flight_instance_id}:`, flightError.message);
+        continue;
+      }
+
+      const airlineId = (flightInstance.flight_number as any)?.airline_id;
+      if (!airlineId) {
+        console.warn(`Không tìm thấy airline_id cho segment ${segment.id}`);
+        continue;
+      }
+
+      const passengerCount = segment.passengers?.length || 0;
+      const segmentRevenue = segment.price || 0;
+
+      if (airlineStats.has(airlineId)) {
+        const existing = airlineStats.get(airlineId)!;
+        existing.passengerCount += passengerCount;
+        existing.revenue += segmentRevenue;
+      } else {
+        airlineStats.set(airlineId, {
+          passengerCount,
+          revenue: segmentRevenue,
+        });
+      }
+    }
+
+    // Cập nhật thống kê cho từng airline
+    for (const [airlineId, stats] of airlineStats) {
+      try {
+        await this.airlineStatisticService.updateStatisticsOnBooking(
+          airlineId,
+          stats.passengerCount,
+          stats.revenue
+        );
+      } catch (error) {
+        console.error(`Lỗi cập nhật thống kê airline ${airlineId}:`, error);
+        // Không throw error để không làm fail booking
+      }
+    }
   }
 
       /**
