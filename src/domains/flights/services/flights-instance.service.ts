@@ -38,7 +38,13 @@ export class FlightsInstanceService {
         flight_number:flight_number_id (
           code,
           departure_airport:departure_airport_id (iata_code, city),
-          arrival_airport:arrival_airport_id (iata_code, city)
+          arrival_airport:arrival_airport_id (iata_code, city),
+          airline:airline_id (
+            id,
+            name,
+            iata_code,
+            logo
+          )
         )
       `)
       .neq('status', FlightStatus.CANCELLED) // Lọc ra các chuyến bay đã bị hủy
