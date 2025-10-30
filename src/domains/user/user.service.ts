@@ -50,7 +50,7 @@ export class UserService {
     }
 
     // Kiểm tra trạng thái tài khoản
-    if (user.account_status === 'LOCKED') {
+    if (user.accountStatus === 'LOCKED') {
       throw new AccountLockedException();
     }
 

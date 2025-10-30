@@ -557,6 +557,16 @@ export class BookingsService {
                     iata_code,
                     logo
                   )
+                ),
+                fares (
+                  id,
+                  base_price,
+                  fare_bucket:fare_bucket_id (
+                    id,
+                    code,
+                    class_type,
+                    description
+                  )
                 )
               ),
               fare_bucket:fare_bucket_id (
@@ -602,13 +612,47 @@ export class BookingsService {
         // Tính tổng số segment
         const totalSegments = booking.booking_segments?.length || 0;
 
-        // Tính duration cho mỗi segment
+        // Tính duration và giá cho mỗi segment
         const segmentsWithDuration = booking.booking_segments?.map((segment: any) => {
           const departure = new Date(segment.flight_instance.scheduled_departure_local);
           const arrival = new Date(segment.flight_instance.scheduled_arrival_local);
           const durationMinutes = Math.floor((arrival.getTime() - departure.getTime()) / (1000 * 60));
           const hours = Math.floor(durationMinutes / 60);
           const minutes = durationMinutes % 60;
+
+          // Tìm fare phù hợp với fare_bucket_id của segment
+          const segmentFare = segment.flight_instance.fares?.find((fare: any) => 
+            fare.fare_bucket_id === segment.fare_bucket_id
+          );
+          
+          const basePrice = segmentFare?.base_price || 0;
+          
+          // Tính giá cho từng passenger
+          const passengersWithPrice = segment.passengers?.map((passenger: any) => {
+            let passengerPrice = basePrice;
+            
+            // Áp dụng discount cho CHILD và INFANT
+            if (passenger.passenger_type === 'CHILD') {
+              passengerPrice = basePrice * 0.75; // 25% discount cho trẻ em
+            } else if (passenger.passenger_type === 'INFANT') {
+              passengerPrice = basePrice * 0.1; // 90% discount cho em bé
+            }
+
+            return {
+              ...passenger,
+              pricing: {
+                base_price: basePrice,
+                passenger_price: passengerPrice,
+                passenger_type: passenger.passenger_type,
+                currency: 'VND'
+              }
+            };
+          }) || [];
+
+          // Tính tổng giá cho segment này
+          const segmentTotalPrice = passengersWithPrice.reduce((total, passenger) => {
+            return total + passenger.pricing.passenger_price;
+          }, 0);
 
           return {
             ...segment,
@@ -617,9 +661,22 @@ export class BookingsService {
               minutes,
               total_minutes: durationMinutes,
               formatted: `${hours}h ${minutes}m`
-            }
+            },
+            pricing: {
+              base_price: basePrice,
+              segment_total: segmentTotalPrice,
+              currency: 'VND',
+              fare_bucket: segment.fare_bucket,
+              fare_details: segmentFare
+            },
+            passengers: passengersWithPrice
           };
         });
+
+        // Tính tổng giá cho toàn bộ booking
+        const totalBookingPrice = segmentsWithDuration?.reduce((total, segment) => {
+          return total + segment.pricing.segment_total;
+        }, 0) || 0;
 
         return {
           booking: {
@@ -634,7 +691,9 @@ export class BookingsService {
             summary: {
               total_passengers: totalPassengers,
               total_segments: totalSegments,
-              is_roundtrip: totalSegments > 1
+              is_roundtrip: totalSegments > 1,
+              total_price: totalBookingPrice,
+              currency: 'VND'
             },
             created_at: booking.created_at,
             updated_at: booking.updated_at

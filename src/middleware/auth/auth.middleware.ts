@@ -7,6 +7,12 @@ export class AuthMiddleware implements NestMiddleware {
   constructor(private readonly supabaseService: SupabaseService) {}
 
   async use(req: Request, res: Response, next: () => void) {
+    // Skip authentication for Sepay webhook endpoint
+    if (req.path === '/payment/sepay/webhook') {
+      console.log('🔓 Skipping auth middleware for Sepay webhook:', req.path);
+      return next();
+    }
+
     const token = this.extractTokenFromHeader(req);
     if (!token) {
       return res.status(HttpStatus.UNAUTHORIZED).json({
