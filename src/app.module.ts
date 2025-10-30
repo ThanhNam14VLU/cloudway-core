@@ -25,7 +25,7 @@ import { TaxesFeesModule } from './domains/taxes_fees/taxes_fees.module';
 import { TicketsModule } from './domains/tickets/tickets.module';
 import { SupabaseService } from './services/supabase/supabase.service';
 import { AirlineStatisticModule } from './domains/airline-statistic/airline-statistic.module';
-
+import { SepayModule } from './domains/sepay/sepay.module';
 
 @Module({
   imports: [
@@ -62,7 +62,7 @@ import { AirlineStatisticModule } from './domains/airline-statistic/airline-stat
     TaxesFeesModule,
     TicketsModule,
     AirlineStatisticModule,
-
+    SepayModule,
   ],
   controllers: [AppController],
   providers: [AppService, SupabaseService],
@@ -70,7 +70,11 @@ import { AirlineStatisticModule } from './domains/airline-statistic/airline-stat
 export class AppModule implements NestModule{
   configure(consumer:MiddlewareConsumer) {
     // Enable auth middleware globally so req.user is populated
-    consumer.apply(AuthMiddleware).forRoutes('*')
+    // Exclude Sepay webhook endpoint vì nó dùng API key riêng
+    consumer
+      .apply(AuthMiddleware)
+      .exclude('payment/sepay/webhook')
+      .forRoutes('*')
   }
 
 }

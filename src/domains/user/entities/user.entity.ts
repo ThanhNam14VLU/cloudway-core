@@ -32,7 +32,7 @@ import {
     @Column('text', { default: 'CUSTOMER' })
     role: UserRole;
 
-    @Column('text', { default: 'ACTIVE' })
+    @Column('text', { name: 'account_status', default: 'ACTIVE' })
     accountStatus: AccountStatus;
   
     @CreateDateColumn({
