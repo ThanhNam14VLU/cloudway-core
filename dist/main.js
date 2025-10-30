@@ -7,9 +7,13 @@ async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     app.useGlobalPipes(new common_1.ValidationPipe({}));
     app.enableCors({
-        origin: '*',
+        origin: [
+            'https://cloudway-1a909.web.app',
+            'https://cloudway-1a909.firebaseapp.com',
+            'http://localhost:4200'
+          ],
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-        credentials: true,
+        credentials: false,
     });
     await app.listen(process.env.PORT ?? 3000);
 }
