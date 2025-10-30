@@ -1,0 +1,1 @@
+{"version":3,"file":"update-flight-schedule.dto.js","sourceRoot":"","sources":["../../../../src/domains/flights/dto/update-flight-schedule.dto.ts"],"names":[],"mappings":";;;;;;;;;;;;AAAA,qDAA2D;AAE3D,MAAa,uBAAuB;IAGlC,yBAAyB,CAAS;IAIlC,uBAAuB,CAAS;CACjC;AARD,0DAQC;AALC;IAFC,IAAA,4BAAU,GAAE;IACZ,IAAA,8BAAY,GAAE;;0EACmB;AAIlC;IAFC,IAAA,4BAAU,GAAE;IACZ,IAAA,8BAAY,GAAE;;wEACiB"}

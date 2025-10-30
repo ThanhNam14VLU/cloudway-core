@@ -7,7 +7,11 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe({}));
   app.enableCors({
     // origin: 'http://localhost:4200',
-    origin: '*',
+    origin: [
+      'https://cloudway-1a909.web.app',
+      'https://cloudway-1a909.firebaseapp.com',
+      'http://localhost:4200'
+    ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });

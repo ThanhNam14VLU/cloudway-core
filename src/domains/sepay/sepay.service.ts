@@ -6,36 +6,18 @@ export class SepayService {
   private readonly logger = new Logger(SepayService.name);
   constructor(private readonly supabaseService: SupabaseService) {}
 
-  /**
-   * Xử lý dữ liệu webhook từ Sepay
-   * Format từ Sepay:
-   * {
-   *   id: 92704,
-   *   gateway: "Vietcombank",
-   *   transactionDate: "2023-03-25 14:02:37",
-   *   accountNumber: "0123499999",
-   *   code: null,
-   *   content: "chuyen tien mua iphone",
-   *   transferType: "in" | "out",
-   *   transferAmount: 2277000,
-   *   accumulated: 19077000,
-   *   subAccount: null,
-   *   referenceCode: "MBVCB.3278907687",
-   *   description: ""
-   * }
-   */
   async handlePaymentUpdate(data: any) {
     try {
       this.logger.log(`🔔 Nhận webhook từ Sepay: ${JSON.stringify(data)}`);
 
       // 1️⃣ Xác định các trường quan trọng trong webhook
       const {
-        id, // ID giao dịch trên SePay
-        content, // Nội dung chuyển khoản (có thể chứa booking code)
-        transferType, // "in" là tiền vào, "out" là tiền ra
-        transferAmount, // Số tiền giao dịch
-        referenceCode, // Mã tham chiếu
-        transactionDate, // Thời gian giao dịch
+        id,
+        content,
+        transferType,
+        transferAmount,
+        referenceCode,
+        transactionDate,
       } = data;
 
       // 2️⃣ Chỉ xử lý khi transferType = "in" (tiền vào = thanh toán thành công)
